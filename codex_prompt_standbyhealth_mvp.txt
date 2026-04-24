@@ -1,0 +1,294 @@
+You are Codex acting as a senior full-stack product engineer and UI designer. Build an MVP for StandbyHealth, a physician-supervised, AI-assisted medical second-opinion platform.
+
+Goal:
+Create a polished, trustworthy, production-minded MVP using Next.js, Supabase, Supabase Storage, and Supabase Edge Functions. The backend should be robust but not overcomplicated. Avoid microservices. Build a clean MVP that can be demoed to a physician founder and early users.
+
+Product context:
+StandbyHealth helps patients and families upload medical records, labs, imaging reports, and questions. AI organizes and summarizes the case. A licensed physician reviews the case and delivers a structured, patient-friendly written opinion. The first wedge is adult children in the US helping aging parents abroad, especially families receiving fragmented records through WhatsApp PDFs and unclear hospital communication.
+
+Tech stack:
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- shadcn/ui-style components or clean custom Tailwind components
+- Supabase Auth
+- Supabase Postgres
+- Supabase Storage private bucket for documents
+- Supabase Edge Functions for submit-case, generate-case-summary, and deliver-review
+- Zod validation
+- React Hook Form for intake forms
+- Vercel-friendly frontend
+
+Design requirements:
+Create an aesthetically excellent UI. It should feel premium, calm, medical-grade, and trustworthy.
+Use:
+- White background
+- Deep navy, medical blue, muted teal, soft gray
+- Large readable typography
+- Spacious layout
+- Rounded cards
+- Subtle shadows
+- Strong mobile responsiveness
+- Clear status chips and timelines
+
+Avoid flashy gradients, cluttered dashboards, or over-complex interactions.
+
+Build these routes:
+
+Public:
+- `/` landing page
+- `/how-it-works`
+- `/pricing`
+- `/legal/disclaimer`
+
+Auth:
+- `/login`
+- `/signup`
+
+Patient app:
+- `/app` patient dashboard
+- `/app/cases/new` multi-step case intake
+- `/app/cases/[id]` patient case detail
+
+Physician app:
+- `/physician` case queue
+- `/physician/cases/[id]` case review workspace
+
+Landing page content:
+Hero message:
+"Physician-reviewed second opinions, without the confusion."
+Subtext:
+"Upload records, explain your concern, and receive a structured written review from a licensed physician — assisted by AI, reviewed by a human doctor."
+CTA:
+"Get a second opinion"
+Secondary CTA:
+"See how it works"
+
+Include sections:
+- How it works: Upload records → AI organizes the case → Physician reviews → You receive plain-English next steps
+- Use cases: parent abroad, ICU/hospital confusion, new diagnosis, surgery decision, medication review
+- Trust and safety: physician-supervised, AI-assisted, not emergency care
+- Pricing preview
+- FAQ
+
+Patient intake form:
+Create a multi-step form with validation.
+Steps:
+1. Patient details
+2. Medical situation
+3. Top questions
+4. Upload records
+5. Review and submit
+
+Fields:
+- patient_name
+- patient_age
+- patient_country
+- relationship_to_patient
+- main_issue
+- diagnosis
+- current_symptoms
+- current_medications
+- timeline
+- top_questions, allow up to 3
+- preferred_turnaround
+- consent checkbox
+- disclaimer acknowledgement checkbox
+
+Case statuses:
+- draft
+- submitted
+- ai_processing
+- physician_review
+- delivered
+- cancelled
+
+Database schema:
+Create Supabase migration SQL for:
+
+profiles:
+- id uuid primary key references auth.users(id)
+- full_name text
+- role text check role in ('patient', 'physician', 'admin') default 'patient'
+- created_at timestamptz default now()
+- updated_at timestamptz default now()
+
+cases:
+- id uuid primary key default gen_random_uuid()
+- user_id uuid references auth.users(id) not null
+- patient_name text not null
+- patient_age int
+- patient_country text
+- relationship_to_patient text
+- main_issue text not null
+- diagnosis text
+- current_symptoms text
+- current_medications text
+- timeline text
+- top_questions text[]
+- preferred_turnaround text
+- status text check status in ('draft', 'submitted', 'ai_processing', 'physician_review', 'delivered', 'cancelled') default 'draft'
+- urgency_score int
+- urgency_label text
+- created_at timestamptz default now()
+- submitted_at timestamptz
+- updated_at timestamptz default now()
+
+case_documents:
+- id uuid primary key default gen_random_uuid()
+- case_id uuid references cases(id) on delete cascade not null
+- user_id uuid references auth.users(id) not null
+- file_name text not null
+- file_path text not null
+- file_type text
+- file_size bigint
+- document_category text
+- created_at timestamptz default now()
+
+case_ai_summaries:
+- id uuid primary key default gen_random_uuid()
+- case_id uuid references cases(id) on delete cascade not null
+- summary text
+- key_findings text[]
+- risk_flags text[]
+- suggested_questions text[]
+- triage_rationale text
+- model_name text
+- created_at timestamptz default now()
+
+physician_reviews:
+- id uuid primary key default gen_random_uuid()
+- case_id uuid references cases(id) on delete cascade not null
+- physician_id uuid references auth.users(id)
+- case_summary text
+- key_concerns text
+- recommendations text
+- questions_for_local_doctor text
+- red_flags text
+- limitations text
+- final_opinion text
+- status text check status in ('draft', 'delivered') default 'draft'
+- created_at timestamptz default now()
+- updated_at timestamptz default now()
+- delivered_at timestamptz
+
+Storage:
+Create/use a private Supabase Storage bucket named `case-documents`.
+Use file path format:
+`{user_id}/{case_id}/{timestamp}-{filename}`
+Use signed URLs for physician/admin review.
+
+RLS:
+Enable RLS on all tables.
+Implement policies:
+- Patients can read/write their own cases.
+- Patients can read/write documents for their own cases.
+- Physicians/admins can read submitted cases, documents, AI summaries, and reviews.
+- Physicians/admins can create/update physician reviews.
+- Patients can read delivered reviews for their own cases.
+
+Edge Functions:
+Create Supabase Edge Functions:
+
+1. `submit-case`
+Input: `case_id`
+- Verify authenticated user owns the case
+- Update status to `submitted`
+- Set submitted_at
+- Call or trigger `generate-case-summary`, or leave a clean function call abstraction
+
+2. `generate-case-summary`
+Input: `case_id`
+- Fetch case intake and document metadata
+- Generate structured AI prompt
+- If no AI key exists, create deterministic placeholder AI summary
+- Store in `case_ai_summaries`
+- Set case status to `physician_review`
+- Set urgency score and urgency label
+
+Use this AI summarization instruction internally:
+"You are assisting a licensed physician reviewer. You are not making a diagnosis or final treatment decision. Summarize the patient-provided case information into a concise, clinically useful structure. Return JSON with one_paragraph_summary, timeline, current_medications, key_findings, missing_information, red_flags, suggested_questions_for_physician, urgency_score_1_to_5, urgency_rationale. Use plain English. Do not invent facts. If records are missing or unclear, say so."
+
+3. `deliver-review`
+Input: `case_id` and final review fields
+- Verify user has physician/admin role
+- Save review
+- Mark review delivered
+- Update case status to `delivered`
+- Add placeholder email notification abstraction
+
+Physician dashboard:
+- Case queue with status/urgency filters
+- Case cards/table
+- Case detail review workspace
+- Show intake, documents, AI summary, urgency score
+- Editable final review form
+- Save draft and deliver buttons
+
+Patient dashboard:
+- Show case list
+- Start new case button
+- Status chips and timeline
+- Final review visible once delivered
+
+Legal/safety UX:
+Include visible language:
+- Not emergency care
+- Not a replacement for the treating physician
+- For urgent symptoms, contact local emergency services
+- Review is based only on provided records
+- Physician may request more information
+
+Project deliverables:
+- Working Next.js app
+- Supabase client/server helpers
+- Supabase SQL migration files
+- Supabase Edge Function code
+- `.env.example`
+- README with setup steps
+- Seed/demo data instructions
+- Clean folder structure
+
+Suggested folder structure:
+app/
+  page.tsx
+  how-it-works/page.tsx
+  pricing/page.tsx
+  legal/disclaimer/page.tsx
+  login/page.tsx
+  signup/page.tsx
+  app/page.tsx
+  app/cases/new/page.tsx
+  app/cases/[id]/page.tsx
+  physician/page.tsx
+  physician/cases/[id]/page.tsx
+components/
+  marketing/
+  cases/
+  physician/
+  ui/
+lib/
+  supabase/
+  auth/
+  validators/
+  storage/
+  cases.ts
+  reviews.ts
+supabase/
+  migrations/
+  functions/
+    submit-case/
+    generate-case-summary/
+    deliver-review/
+
+Acceptance criteria:
+- A patient can sign up, create a case, upload files, submit the case, and view case status.
+- A physician/admin can view submitted cases, read AI summary, draft a review, and deliver it.
+- The patient can view delivered review.
+- UI is polished and responsive.
+- RLS is implemented.
+- Storage is private.
+- README explains how to run locally and deploy.
+- No secrets are hardcoded.
+
+Build the project incrementally. Start by generating the app structure, database migrations, Supabase helpers, and core UI. Then implement patient flow, file upload, physician flow, and edge functions. Keep the code clean, typed, and easy to extend.
