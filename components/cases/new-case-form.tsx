@@ -77,15 +77,25 @@ export function NewCaseForm() {
     [values.top_questions],
   );
 
-  const onSubmit = form.handleSubmit((data) => {
-    setServerError(null);
-    startTransition(async () => {
-      const result = await createAndSubmitCaseAction(null, buildFormData(data));
-      if (result && "error" in result) {
-        setServerError(result.error);
-      }
-    });
-  });
+  const onSubmit = form.handleSubmit(
+    (data) => {
+      setServerError(null);
+      startTransition(async () => {
+        const result = await createAndSubmitCaseAction(null, buildFormData(data));
+        if (result && "error" in result) {
+          setServerError(result.error);
+        }
+      });
+    },
+    (errors) => {
+      const firstFieldWithError = Object.keys(errors)[0];
+      const firstMessage =
+        Object.values(errors)
+          .map((e) => (e as { message?: string })?.message)
+          .filter(Boolean)[0] ?? "Please fill in all required fields.";
+      setServerError(`${firstMessage} (field: ${firstFieldWithError})`);
+    },
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-[0.35fr_0.65fr]">
