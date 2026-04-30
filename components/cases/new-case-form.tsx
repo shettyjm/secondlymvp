@@ -13,6 +13,15 @@ import {
   type CaseIntakeInput,
 } from "@/lib/validators/cases";
 import { createAndSubmitCaseAction } from "@/lib/cases/actions";
+import type { FieldPath } from "react-hook-form";
+
+const stepFields: Array<Array<FieldPath<CaseIntakeInput>>> = [
+  ["patient_name", "patient_age", "patient_country", "relationship_to_patient"],
+  ["main_issue", "current_symptoms", "current_medications", "timeline"],
+  ["top_questions", "preferred_turnaround"],
+  [],
+  ["consent", "disclaimer_acknowledged"],
+];
 
 const steps = [
   "Patient details",
@@ -76,6 +85,23 @@ export function NewCaseForm() {
     () => values.top_questions.filter(Boolean),
     [values.top_questions],
   );
+
+  const goNext = async () => {
+    const fields = stepFields[step];
+    const valid = fields.length === 0 ? true : await form.trigger(fields);
+    if (!valid) {
+      const errors = form.formState.errors;
+      const firstField = fields.find((f) => (errors as Record<string, unknown>)[f]);
+      const message =
+        firstField &&
+        ((errors as Record<string, { message?: string }>)[firstField]?.message ??
+          "Please fix the highlighted fields.");
+      setServerError(message ? `${message} (field: ${firstField})` : "Please fill in the required fields on this step.");
+      return;
+    }
+    setServerError(null);
+    setStep((current) => Math.min(steps.length - 1, current + 1));
+  };
 
   const onSubmit = form.handleSubmit(
     (data) => {
@@ -202,12 +228,13 @@ export function NewCaseForm() {
                   <span>I understand this is not emergency care or a replacement for local treatment.</span>
                 </label>
               </div>
-              {(serverError || form.formState.errors.root) && (
-                <p className="text-sm text-red-600" role="alert">
-                  {serverError ?? form.formState.errors.root?.message}
-                </p>
-              )}
             </div>
+          )}
+
+          {serverError && (
+            <p className="text-sm text-red-600" role="alert">
+              {serverError}
+            </p>
           )}
 
           <div className="flex flex-wrap justify-between gap-3">
@@ -221,10 +248,7 @@ export function NewCaseForm() {
             </Button>
             <div className="flex gap-3">
               {step < steps.length - 1 ? (
-                <Button
-                  type="button"
-                  onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))}
-                >
+                <Button type="button" onClick={goNext}>
                   Continue
                 </Button>
               ) : (
