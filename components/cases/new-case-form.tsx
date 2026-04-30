@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   caseIntakeSchema,
   type CaseIntakeInput,
 } from "@/lib/validators/cases";
+import { createAndSubmitCaseAction } from "@/lib/cases/actions";
 
 const steps = [
   "Patient details",
@@ -37,8 +38,33 @@ const defaults: CaseIntakeInput = {
   disclaimer_acknowledged: true,
 };
 
+function buildFormData(data: CaseIntakeInput): FormData {
+  const fd = new FormData();
+  fd.append("patient_name", data.patient_name);
+  fd.append("patient_age", String(data.patient_age));
+  fd.append("patient_country", data.patient_country);
+  fd.append("relationship_to_patient", data.relationship_to_patient);
+  fd.append("main_issue", data.main_issue);
+  fd.append("diagnosis", data.diagnosis ?? "");
+  fd.append("current_symptoms", data.current_symptoms);
+  fd.append("current_medications", data.current_medications);
+  fd.append("timeline", data.timeline);
+  data.top_questions
+    .filter(Boolean)
+    .forEach((q) => fd.append("top_questions", q));
+  fd.append("preferred_turnaround", data.preferred_turnaround);
+  fd.append("consent", data.consent ? "true" : "false");
+  fd.append(
+    "disclaimer_acknowledged",
+    data.disclaimer_acknowledged ? "true" : "false",
+  );
+  return fd;
+}
+
 export function NewCaseForm() {
   const [step, setStep] = useState(0);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
   const form = useForm<CaseIntakeInput>({
     resolver: zodResolver(caseIntakeSchema),
     defaultValues: defaults,
@@ -52,7 +78,13 @@ export function NewCaseForm() {
   );
 
   const onSubmit = form.handleSubmit((data) => {
-    console.log("Replace with insert to Supabase", data);
+    setServerError(null);
+    startTransition(async () => {
+      const result = await createAndSubmitCaseAction(null, buildFormData(data));
+      if (result && "error" in result) {
+        setServerError(result.error);
+      }
+    });
   });
 
   return (
@@ -160,24 +192,35 @@ export function NewCaseForm() {
                   <span>I understand this is not emergency care or a replacement for local treatment.</span>
                 </label>
               </div>
+              {(serverError || form.formState.errors.root) && (
+                <p className="text-sm text-red-600" role="alert">
+                  {serverError ?? form.formState.errors.root?.message}
+                </p>
+              )}
             </div>
           )}
 
           <div className="flex flex-wrap justify-between gap-3">
             <Button
+              type="button"
               variant="secondary"
-              disabled={step === 0}
+              disabled={step === 0 || pending}
               onClick={() => setStep((current) => Math.max(0, current - 1))}
             >
               Back
             </Button>
             <div className="flex gap-3">
               {step < steps.length - 1 ? (
-                <Button onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))}>
+                <Button
+                  type="button"
+                  onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))}
+                >
                   Continue
                 </Button>
               ) : (
-                <Button type="submit">Submit case</Button>
+                <Button type="submit" disabled={pending}>
+                  {pending ? "Submitting…" : "Submit case"}
+                </Button>
               )}
             </div>
           </div>

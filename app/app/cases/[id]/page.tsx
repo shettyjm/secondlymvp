@@ -2,15 +2,17 @@ import { notFound } from "next/navigation";
 import { CaseTimeline } from "@/components/cases/case-timeline";
 import { StatusChip } from "@/components/cases/status-chip";
 import { Card } from "@/components/ui/card";
-import { mockCases } from "@/lib/mock-data";
+import { requireUser } from "@/lib/auth/guards";
+import { getCaseById } from "@/lib/cases";
 
 export default async function PatientCaseDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireUser();
   const { id } = await params;
-  const record = mockCases.find((item) => item.id === id);
+  const record = await getCaseById(id);
 
   if (!record) {
     notFound();

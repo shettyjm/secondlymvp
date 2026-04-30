@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { mockCases } from "@/lib/mock-data";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/cases/status-chip";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { requireUser } from "@/lib/auth/guards";
+import { listCases } from "@/lib/cases";
 
 export default async function PatientDashboardPage() {
   const { user } = await requireUser();
+  const cases = await listCases();
 
   return (
     <div className="space-y-8 py-8">
@@ -29,23 +30,31 @@ export default async function PatientDashboardPage() {
       </Card>
 
       <div className="grid gap-4">
-        {mockCases.map((item) => (
-          <Card key={item.id} className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-semibold text-ink">{item.patient_name}</h2>
-                <StatusChip status={item.status} />
-              </div>
-              <p className="text-sm text-slate-600">{item.main_issue}</p>
-              <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                {item.patient_country} • {item.preferred_turnaround}
-              </p>
-            </div>
-            <Link href={`/app/cases/${item.id}`}>
-              <Button variant="secondary">Open case</Button>
-            </Link>
+        {cases.length === 0 ? (
+          <Card className="text-sm text-slate-600">
+            You haven&apos;t submitted any cases yet. Click{" "}
+            <span className="font-semibold text-ink">Start new case</span> to
+            request your first second opinion.
           </Card>
-        ))}
+        ) : (
+          cases.map((item) => (
+            <Card key={item.id} className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-semibold text-ink">{item.patient_name}</h2>
+                  <StatusChip status={item.status} />
+                </div>
+                <p className="text-sm text-slate-600">{item.main_issue}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  {item.patient_country} • {item.preferred_turnaround}
+                </p>
+              </div>
+              <Link href={`/app/cases/${item.id}`}>
+                <Button variant="secondary">Open case</Button>
+              </Link>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );
