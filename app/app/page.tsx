@@ -3,22 +3,29 @@ import { mockCases } from "@/lib/mock-data";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/cases/status-chip";
+import { SignOutButton } from "@/components/auth/sign-out-button";
+import { requireUser } from "@/lib/auth/guards";
 
-export default function PatientDashboardPage() {
+export default async function PatientDashboardPage() {
+  const { user } = await requireUser();
+
   return (
     <div className="space-y-8 py-8">
       <Card className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div className="space-y-2">
           <p className="text-sm uppercase tracking-[0.2em] text-teal">
-            Patient dashboard
+            Patient dashboard · {user.email}
           </p>
           <h1 className="text-3xl font-semibold text-ink">
             Welcome back. Your cases stay organized in one secure workspace.
           </h1>
         </div>
-        <Link href="/app/cases/new">
-          <Button>Start new case</Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/app/cases/new">
+            <Button>Start new case</Button>
+          </Link>
+          <SignOutButton />
+        </div>
       </Card>
 
       <div className="grid gap-4">
