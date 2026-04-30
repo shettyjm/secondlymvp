@@ -51,23 +51,8 @@ Deno.serve(async (request) => {
       throw updateError;
     }
 
-    const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-case-summary`;
-    const authHeader = request.headers.get("Authorization") ?? "";
-
-    const summaryResponse = await fetch(functionUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
-      },
-      body: JSON.stringify({ case_id }),
-    });
-
     return Response.json(
-      {
-        ok: true,
-        queued_summary: summaryResponse.ok,
-      },
+      { ok: true },
       { headers: corsHeaders },
     );
   } catch (error) {
